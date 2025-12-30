@@ -1,0 +1,22 @@
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app
+      POSTGRES_DB: payments
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./sql/init.sql:/docker-entrypoint-initdb.d/init.sql
+
+  api:
+    build: .
+    environment:
+      DATABASE_URL: postgresql://app:app@db:5432/payments
+      PROVIDER_TIMEOUT_SECONDS: "0.35"
+      OUTAGE_PENDING_CAP_CENTS: "20000"
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
