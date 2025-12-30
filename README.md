@@ -38,7 +38,7 @@ A client calls `POST /checkout` to create an order and attempt a payment.
 docker compose up --build
 
 Open API Docs
-
+```
 Swagger UI: http://localhost:8000/docs
 
 ## Demos & usage
@@ -140,6 +140,7 @@ tests/          # (optional) tests
 docker-compose.yml
 Dockerfile
 requirements.txt
+
 
 
 
