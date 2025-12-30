@@ -37,66 +37,84 @@ A client calls `POST /checkout` to create an order and attempt a payment.
 ```bash
 docker compose up --build
 
-**### 2) Open API Docs**
+Open API Docs
 
-Swagger UI is available at: http://localhost:8000/docs
+Swagger UI: http://localhost:8000/docs
 
-**Demos & usage**
+Demos & usage
+1) Idempotent checkout
 
-**1. Idempotent Checkout**
-Create an order using an Idempotency-Key.
-
-**run the following in your terminal or CMD:**
+Create an order using an Idempotency-Key:
 
 curl -s -X POST "http://localhost:8000/checkout" \
   -H "Content-Type: application/json" \
   -H "Idempotency-Key: demo-1" \
   -d '{"buyer_id":"b1","seller_id":"s1","amount_cents":5000,"currency":"EUR","buyer_trust":"trusted"}'
-Success: You receive a PAID status.
 
-Idempotency Proof: Run the same request again. You will receive the exact same order_id.
 
-Conflict Prevention: Change the request body but keep the same key; the API returns a 409 Conflict.
+What to expect:
 
-2. Provider Outage to Webhook Finalization
+Success: you receive PAID (or sometimes FAILED depending on simulator).
+
+Idempotency proof: run the same request again (same key + same body) → exact same order_id.
+
+Conflict prevention: reuse the same key with a different request body → 409 Conflict.
+
+2) Provider outage → webhook finalization
 
 The provider is simulated and occasionally times out.
 
-Step A: Create a Pending Order Use a new key until you trigger the outage logic:
+Step A: Create a pending order
 
-**run the following in your terminal or CMD:**
+Use a new idempotency key each attempt until you trigger PENDING_PAYMENT:
 
 curl -s -X POST "http://localhost:8000/checkout" \
   -H "Content-Type: application/json" \
   -H "Idempotency-Key: pending-1" \
   -d '{"buyer_id":"b2","seller_id":"s2","amount_cents":5000,"currency":"EUR","buyer_trust":"trusted"}'
-Response: {"status":"PENDING_PAYMENT", "ready_to_ship": false}
 
-Step B: Finalize via Webhook Use the <ORDER_ID> from the previous step to simulate a provider callback:
 
-**run the following in your terminal or CMD:**
+Example response:
+
+{"order_id":"...","status":"PENDING_PAYMENT","ready_to_ship":false}
+
+Step B: Finalize via webhook
+
+Use the <ORDER_ID> from the previous step:
 
 curl -s -X POST "http://localhost:8000/webhooks/provider" \
   -H "Content-Type: application/json" \
   -d '{"event_id":"evt-200","order_id":"<ORDER_ID>","outcome":"PAID"}'
-Step C: Replay Protection Send the same webhook again. The response will show duplicate: true, and the ledger will not be updated twice.
 
-**Ledger & Accounting**
-When an order is finalized, the system will record two entries:
+Step C: Replay protection
+
+Send the same webhook again (same event_id) — it should be detected as a duplicate:
+
+curl -s -X POST "http://localhost:8000/webhooks/provider" \
+  -H "Content-Type: application/json" \
+  -d '{"event_id":"evt-200","order_id":"<ORDER_ID>","outcome":"PAID"}'
+
+
+Expected:
+
+{"ok":true,"duplicate":true}
+
+Ledger & accounting
+
+When an order is finalized, the system records two entries:
 
 DEBIT cash
 
 CREDIT seller_payable
 
-**Inspecting the Database**
-To view the underlying tables:
+Inspecting the database
 
-**run the following in your terminal or CMD:**
+List tables:
 
 docker compose exec db psql -U app -d payments -P pager=off -c "\dt"
-To inspect ledger entries for a specific order:
 
-**Then run the following in your terminal or CMD:**
+
+Inspect ledger entries for an order:
 
 docker compose exec db psql -U app -d payments -P pager=off -c \
 "SELECT e.account, e.direction, e.amount_cents, e.currency
@@ -104,14 +122,15 @@ docker compose exec db psql -U app -d payments -P pager=off -c \
  JOIN ledger_transactions t ON t.id = e.txn_id
  WHERE t.order_id = '<ORDER_ID>'
  ORDER BY e.account, e.direction;"
-Design Policies
-Outage Mode Policy
+
+Design policies
+Outage mode policy
 
 To limit risk during outages, PENDING_PAYMENT is only allowed if:
 
-buyer_trust is "trusted".
+buyer_trust is "trusted"
 
-The order amount is below the OUTAGE_PENDING_CAP_CENTS threshold.
+the order amount is below the OUTAGE_PENDING_CAP_CENTS threshold
 
 **Project structure**
 
@@ -121,6 +140,7 @@ tests/          # (optional) tests
 docker-compose.yml
 Dockerfile
 requirements.txt
+
 
 
 
