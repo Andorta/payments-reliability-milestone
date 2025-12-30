@@ -45,12 +45,12 @@ Swagger UI: http://localhost:8000/docs
 1) Idempotent checkout
 
 Create an order using an Idempotency-Key:
-
+```
 curl -s -X POST "http://localhost:8000/checkout" \
   -H "Content-Type: application/json" \
   -H "Idempotency-Key: demo-1" \
   -d '{"buyer_id":"b1","seller_id":"s1","amount_cents":5000,"currency":"EUR","buyer_trust":"trusted"}'
-
+```
 
 ## What to expect:
 
@@ -67,12 +67,12 @@ The provider is simulated and occasionally times out.
 Step A: Create a pending order
 
 Use a new idempotency key each attempt until you trigger PENDING_PAYMENT:
-
+```
 curl -s -X POST "http://localhost:8000/checkout" \
   -H "Content-Type: application/json" \
   -H "Idempotency-Key: pending-1" \
   -d '{"buyer_id":"b2","seller_id":"s2","amount_cents":5000,"currency":"EUR","buyer_trust":"trusted"}'
-
+```
 
 Example response:
 
@@ -81,19 +81,20 @@ Example response:
 Step B: Finalize via webhook
 
 Use the <ORDER_ID> from the previous step:
-
+```
 curl -s -X POST "http://localhost:8000/webhooks/provider" \
   -H "Content-Type: application/json" \
   -d '{"event_id":"evt-200","order_id":"<ORDER_ID>","outcome":"PAID"}'
+```
 
 Step C: Replay protection
 
 Send the same webhook again (same event_id) — it should be detected as a duplicate:
-
+```
 curl -s -X POST "http://localhost:8000/webhooks/provider" \
   -H "Content-Type: application/json" \
   -d '{"event_id":"evt-200","order_id":"<ORDER_ID>","outcome":"PAID"}'
-
+```
 
 Expected:
 
@@ -110,18 +111,19 @@ CREDIT seller_payable
 Inspecting the database
 
 List tables:
-
+```
 docker compose exec db psql -U app -d payments -P pager=off -c "\dt"
-
+```
 
 Inspect ledger entries for an order:
-
+```
 docker compose exec db psql -U app -d payments -P pager=off -c \
 "SELECT e.account, e.direction, e.amount_cents, e.currency
  FROM ledger_entries e
  JOIN ledger_transactions t ON t.id = e.txn_id
  WHERE t.order_id = '<ORDER_ID>'
  ORDER BY e.account, e.direction;"
+```
 
 Design policies
 Outage mode policy
@@ -140,6 +142,7 @@ tests/          # (optional) tests
 docker-compose.yml
 Dockerfile
 requirements.txt
+
 
 
 
