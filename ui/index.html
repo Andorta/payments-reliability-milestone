@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Payments Milestone UI</title>
+    <style>
+      body { font-family: -apple-system, system-ui, sans-serif; margin: 24px; max-width: 900px; }
+      .card { border: 1px solid #e5e5e5; border-radius: 12px; padding: 16px; margin: 12px 0; }
+      label { display:block; margin: 10px 0 6px; font-weight: 600; }
+      input, select { width: 100%; padding: 10px; border-radius: 10px; border: 1px solid #ddd; }
+      button { padding: 10px 14px; border-radius: 10px; border: 1px solid #ddd; background: #fff; cursor: pointer; }
+      button.primary { border-color: #111; }
+      .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+      pre { background: #0b0b0b; color: #eaeaea; padding: 12px; border-radius: 12px; overflow: auto; }
+      .muted { color: #666; }
+    </style>
+  </head>
+  <body>
+    <h1>Payments Milestone</h1>
+    <p class="muted">Idempotent checkout • outage mode • replay-safe webhooks • double-entry ledger</p>
+
+    <div class="card">
+      <h2>Create Checkout</h2>
+
+      <label>Idempotency Key</label>
+      <input id="idem" placeholder="demo-1" value="demo-ui-1" />
+
+      <div class="row">
+        <div>
+          <label>Buyer ID</label>
+          <input id="buyer" value="b-ui" />
+        </div>
+        <div>
+          <label>Seller ID</label>
+          <input id="seller" value="s-ui" />
+        </div>
+      </div>
+
+      <div class="row">
+        <div>
+          <label>Amount (cents)</label>
+          <input id="amount" type="number" value="5000" />
+        </div>
+        <div>
+          <label>Currency</label>
+          <input id="currency" value="EUR" />
+        </div>
+      </div>
+
+      <label>Buyer Trust</label>
+      <select id="trust">
+        <option value="trusted" selected>trusted</option>
+        <option value="new">new</option>
+      </select>
+
+      <div style="margin-top:12px; display:flex; gap:10px; flex-wrap:wrap;">
+        <button class="primary" id="btnCheckout">POST /checkout</button>
+        <button id="btnGetOrder" disabled>GET /orders/&lt;order_id&gt;</button>
+        <button id="btnWebhookPaid" disabled>POST webhook (PAID)</button>
+        <button id="btnLedger" disabled>GET ledger</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Result</h2>
+      <pre id="out">{}</pre>
+    </div>
+
+    <script>
+      const out = document.getElementById("out");
+      const btnGetOrder = document.getElementById("btnGetOrder");
+      const btnWebhookPaid = document.getElementById("btnWebhookPaid");
+      const btnLedger = document.getElementById("btnLedger");
+
+
+      let lastOrderId = null;
+
+      function show(obj) {
+        out.textContent = JSON.stringify(obj, null, 2);
+      }
+
+      async function postCheckout() {
+        const body = {
+          buyer_id: document.getElementById("buyer").value,
+          seller_id: document.getElementById("seller").value,
+          amount_cents: Number(document.getElementById("amount").value),
+          currency: document.getElementById("currency").value,
+          buyer_trust: document.getElementById("trust").value
+        };
+
+        const idem = document.getElementById("idem").value;
+
+        const res = await fetch("/checkout", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Idempotency-Key": idem
+          },
+          body: JSON.stringify(body)
+        });
+
+        const data = await res.json().catch(() => ({}));
+        show({ status_code: res.status, response: data });
+
+        if (res.ok && data.order_id) {
+          lastOrderId = data.order_id;
+          btnGetOrder.disabled = false;
+          btnWebhookPaid.disabled = false;
+          btnLedger.disabled = false;
+        }
+      }
+
+      async function getOrder() {
+        if (!lastOrderId) return;
+        const res = await fetch(`/orders/${lastOrderId}`);
+        const data = await res.json().catch(() => ({}));
+        show({ status_code: res.status, response: data });
+      }
+
+      async function getLedger() {
+  if (!lastOrderId) return;
+  const res = await fetch(`/orders/${lastOrderId}/ledger`);
+  const data = await res.json().catch(() => ({}));
+  show({ status_code: res.status, response: data });
+}
+
+      async function webhookPaid() {
+        if (!lastOrderId) return;
+        const evtId = `evt-ui-${Date.now()}`;
+        const payload = { event_id: evtId, order_id: lastOrderId, outcome: "PAID" };
+
+        const res = await fetch("/webhooks/provider", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+
+        const data = await res.json().catch(() => ({}));
+        show({ status_code: res.status, sent: payload, response: data });
+      }
+
+      document.getElementById("btnCheckout").addEventListener("click", () => postCheckout().catch(err => show({error: String(err)})));
+      btnGetOrder.addEventListener("click", () => getOrder().catch(err => show({error: String(err)})));
+      btnWebhookPaid.addEventListener("click", () => webhookPaid().catch(err => show({error: String(err)})));
+      btnLedger.addEventListener("click", () => getLedger().catch(err => show({error: String(err)})));
+    </script>
+  </body>
+</html>

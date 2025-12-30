@@ -1,5 +1,7 @@
 from fastapi import FastAPI, Header, HTTPException
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
+
 import hashlib
 import json
 import uuid
@@ -13,6 +15,13 @@ from .settings import PROVIDER_TIMEOUT_SECONDS, OUTAGE_PENDING_CAP_CENTS
 
 app = FastAPI(title="Payments Milestone", version="0.1.0")
 
+# Serve UI static assets under /ui and the main page at /
+app.mount("/ui", StaticFiles(directory="ui"), name="ui")
+
+@app.get("/")
+def root():
+    return FileResponse("ui/index.html")
+
 @app.get("/health")
 def health():
     return {"ok": True}
@@ -23,18 +32,15 @@ def sha256_json(obj: dict) -> str:
 
 
 async def call_provider_simulator(payload: dict) -> dict:
-    """
-    Calls our own /_provider/charge endpoint with a short timeout.
-    The provider simulator sometimes sleeps longer than the timeout => simulates outage.
-    """
     async with httpx.AsyncClient() as client:
         r = await client.post(
-            "http://localhost:8000/_provider/charge",
+            "http://api:8000/_provider/charge",
             json=payload,
             timeout=PROVIDER_TIMEOUT_SECONDS,
         )
         r.raise_for_status()
         return r.json()
+
 
 
 def create_ledger_for_paid_order(conn, order_id: str):
@@ -154,6 +160,21 @@ async def checkout(req: CheckoutRequest, idempotency_key: str = Header(None, ali
         )
 
         return resp
+    
+@app.get("/orders/{order_id}")
+def get_order(order_id: str):
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT id, buyer_id, seller_id, amount_cents, currency, buyer_trust, status, ready_to_ship, created_at, updated_at "
+            "FROM orders WHERE id = %s",
+            (order_id,),
+        ).fetchone()
+
+        if not row:
+            raise HTTPException(status_code=404, detail="Order not found")
+
+        row["id"] = str(row["id"])
+        return row
 
 
 @app.post("/webhooks/provider")
