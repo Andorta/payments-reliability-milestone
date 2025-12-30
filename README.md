@@ -134,14 +134,17 @@ buyer_trust is "trusted"
 
 the order amount is below the OUTAGE_PENDING_CAP_CENTS threshold
 
-### Project structure
+## Project structure
 
+```text
 app/            # FastAPI application code
 sql/init.sql    # Postgres schema created on container startup
 tests/          # (optional) tests
 docker-compose.yml
 Dockerfile
 requirements.txt
+
+
 
 
 
