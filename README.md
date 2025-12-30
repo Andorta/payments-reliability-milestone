@@ -41,7 +41,7 @@ Open API Docs
 
 Swagger UI: http://localhost:8000/docs
 
-Demos & usage
+## Demos & usage
 1) Idempotent checkout
 
 Create an order using an Idempotency-Key:
@@ -52,7 +52,7 @@ curl -s -X POST "http://localhost:8000/checkout" \
   -d '{"buyer_id":"b1","seller_id":"s1","amount_cents":5000,"currency":"EUR","buyer_trust":"trusted"}'
 
 
-What to expect:
+## What to expect:
 
 Success: you receive PAID (or sometimes FAILED depending on simulator).
 
@@ -60,7 +60,7 @@ Idempotency proof: run the same request again (same key + same body) → exact s
 
 Conflict prevention: reuse the same key with a different request body → 409 Conflict.
 
-2) Provider outage → webhook finalization
+2) Provider outage to webhook finalization
 
 The provider is simulated and occasionally times out.
 
@@ -132,7 +132,7 @@ buyer_trust is "trusted"
 
 the order amount is below the OUTAGE_PENDING_CAP_CENTS threshold
 
-**Project structure**
+## Project structure
 
 app/            # FastAPI application code
 sql/init.sql    # Postgres schema created on container startup
@@ -140,6 +140,7 @@ tests/          # (optional) tests
 docker-compose.yml
 Dockerfile
 requirements.txt
+
 
 
 
